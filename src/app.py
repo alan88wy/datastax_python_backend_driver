@@ -130,9 +130,9 @@ def login():
 @app.route('/retrieve_password/<string:email>', methods=['GET'])
 def retrieve_password(email: str):
 
-	result = session.execute("SELECT * FROM users WHERE email = %(email)s", {'email':email}).one()
+	user = session.execute("SELECT * FROM users WHERE email = %(email)s", {'email':email}).one()
 
-	if result:
+	if user:
 		msg = Message('Your planetary API password is ' + user.password, sender='admin@planetary-api.com', recipients=['email'])
 		mail.send(msg)
 		return jsonify(message="Password sent to " + email)
@@ -143,9 +143,9 @@ def retrieve_password(email: str):
 @jwt_required()  
 def update_user():
 	email = request.form['email']
-	result = session.execute("SELECT * FROM users WHERE email = %(email)s", {'email':email}).one()
+	user = session.execute("SELECT * FROM users WHERE email = %(email)s", {'email':email}).one()
 
-	if result:
+	if user:
 		first_name = request.form['first_name']
 		last_name = request.form['last_name']
 		password = request.form['password']
@@ -176,7 +176,7 @@ def add_planet():
 	planet = session.execute("SELECT * FROM planet WHERE planet_name = %(planet_name)s", {'planet_name':planet_name}).one()
 
 	if planet:
-		return jsonify('There is already a planet by that name'), 409
+		return jsonify('There is already a planet by that name of ' + planet_name), 409
 	else:
 		planet_id = uuid.uuid1()
 		planet_type = request.form['planet_type']
@@ -192,11 +192,17 @@ def add_planet():
 @app.route('/update_planet', methods=['PUT'])
 @jwt_required()  
 def update_planet():
-	planet_id = request.form['planet_id']
+	
+	planet_id = str(request.form['planet_id'])
+	
 	id = uuid.UUID(planet_id)
+
 	planet = session.execute("SELECT * FROM planet WHERE planet_id = %(planet_id)s", {'planet_id':id}).one()
+	
+	print('i waz ere')
 
 	if planet:
+		
 		planet_name = request.form['planet_name']
 		planet_type = request.form['planet_type']
 		home_star = request.form['home_star']
@@ -205,17 +211,15 @@ def update_planet():
 		distance = float(request.form['distance'])
 
 		prepared = session.prepare('UPDATE planet SET planet_name = ?, planet_type = ?, home_star = ?, mass = ?, radius = ?, distance = ? WHERE planet_id = ?')
-		session.execute(prepared, [planet_name, planet_type, home_star, mass, radius, distance, planet_id])
+		session.execute(prepared, [planet_name, planet_type, home_star, mass, radius, distance, id])
 
 		return jsonify(message='You have updated planet '+ planet_name), 202
 	else:
 		return jsonify(message='That planet does not exist !'), 404
 
-@app.route('/delete_planet/<int:planet_id>', methods=['DELETE'])
+@app.route('/delete_planet/<string:planet_id>', methods=['DELETE'])
 @jwt_required()  
-def delete_planet(planet_id:int):
-
-	planet_id = request.form['planet_id']
+def delete_planet(planet_id:str):
 
 	id = uuid.UUID(planet_id)
 
@@ -223,7 +227,7 @@ def delete_planet(planet_id:int):
 
 	if planet:	
 		prepared = session.prepare("DELETE FROM planet WHERE planet_id = ?")
-		session.execute(prepared, [planet_id])
+		session.execute(prepared, [id])
 
 		return jsonify(message='You have deleted planet ' + planet.planet_name), 202
 	else:
