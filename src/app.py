@@ -41,6 +41,24 @@ app.config["JWT_SECRET_KEY"] = JWT_SECRET  # Change this!
 jwt = JWTManager(app)
 mail = Mail(app)
 
+def get_user_by_email(email):
+
+	user = session.execute("SELECT * FROM users WHERE email = %(email)s", {'email':email}).one()
+
+	if user:
+		return user
+	else:
+		return None
+
+def get_planet_by_id(id):
+
+	planet = session.execute("SELECT * FROM planet WHERE planet_id = %(planet_id)s", {'planet_id':id}).one()
+
+	if planet:
+		return planet
+	else:
+		return None
+
 def checkInt(str):
     if str[0] in ('-', '+'):
         return str[1:].isdigit()
@@ -92,12 +110,9 @@ def planets():
 def register():
 	email = request.form['email']
 
-	stmt = session.prepare("SELECT * FROM Users WHERE email = ? LIMIT 1")
-	result = session.execute(stmt, [email])
-
-	if (len(result.current_rows) > 0):
-		return jsonify(message='That email already exists.'), 404
-	else:
+	user = get_user_by_email(email)
+	
+	if user == None:
 		first_name = request.form['first_name']
 		last_name = request.form['last_name']
 		password = request.form['password']
@@ -106,6 +121,8 @@ def register():
 		session.execute("INSERT INTO Users (id, first_name, last_name, email, password) VALUES (%s,%s,%s,%s, %s)", [id, first_name, last_name, email, password])
 
 		return jsonify(message='User created successfully'), 201
+	else: 
+		return jsonify(message='That email already exists.'), 404
 
 # Create a route to authenticate your users and return JWTs. The
 # create_access_token() function is used to actually generate the JWT.
@@ -119,9 +136,13 @@ def login():
 		email = request.form['email']
 		password = request.form['password']
 
-	result = session.execute("SELECT * FROM users WHERE email = %(email)s", {'email':email}).one()
+	# user = session.execute("SELECT * FROM users WHERE email = %(email)s", {'email':email}).one()
+
+	user = get_user_by_email(email)
 	
-	if (str(result.password) == str(password)):
+	if user == None:
+		return jsonify(message='User not found !'), 401
+	elif (str(user.password) == str(password)):
 		access_token = create_access_token(identity=email)
 		return jsonify(message='Login Successful!', access_token=access_token)
 	else:
@@ -130,22 +151,24 @@ def login():
 @app.route('/retrieve_password/<string:email>', methods=['GET'])
 def retrieve_password(email: str):
 
-	user = session.execute("SELECT * FROM users WHERE email = %(email)s", {'email':email}).one()
-
-	if user:
+	user = get_user_by_email(email)
+	
+	if user == None:
+		return jsonify(message='That email does not exist!'), 401
+	else: 
 		msg = Message('Your planetary API password is ' + user.password, sender='admin@planetary-api.com', recipients=['email'])
 		mail.send(msg)
 		return jsonify(message="Password sent to " + email)
-	else:
-		return jsonify(message = "That email does not exist!"), 401
 
 @app.route('/update_user', methods=['PUT'])
 @jwt_required()  
 def update_user():
 	email = request.form['email']
-	user = session.execute("SELECT * FROM users WHERE email = %(email)s", {'email':email}).one()
-
-	if user:
+	user = get_user_by_email(email)
+	
+	if user == None:
+		return jsonify(message='That email does not exist!'), 404
+	else: 
 		first_name = request.form['first_name']
 		last_name = request.form['last_name']
 		password = request.form['password']
@@ -154,16 +177,14 @@ def update_user():
 		session.execute(prepared, [first_name, last_name, password, user.id])
 		
 		return jsonify(message='You have updated user '+ first_name), 202
-	else:
-		return jsonify(message='That user does not exist !'), 404
 
 @app.route('/planet_details/<string:planet_id>', methods=['GET'])
 def planet_details(planet_id:str):
 
 	id = uuid.UUID(planet_id)
-	planet = session.execute("SELECT * FROM planet WHERE planet_id = %(planet_id)s", {'planet_id':id}).one()
+	planet = get_planet_by_id(id)
 
-	if planet:
+	if planet != None:
 		return jsonify(planet)
 	else:
 		return jsonify(message='That planet does not exist'), 404
@@ -197,11 +218,9 @@ def update_planet():
 	
 	id = uuid.UUID(planet_id)
 
-	planet = session.execute("SELECT * FROM planet WHERE planet_id = %(planet_id)s", {'planet_id':id}).one()
-	
-	print('i waz ere')
+	planet = get_planet_by_id(id)
 
-	if planet:
+	if planet != None:
 		
 		planet_name = request.form['planet_name']
 		planet_type = request.form['planet_type']
@@ -223,9 +242,9 @@ def delete_planet(planet_id:str):
 
 	id = uuid.UUID(planet_id)
 
-	planet = session.execute("SELECT * FROM planet WHERE planet_id = %(planet_id)s", {'planet_id':id}).one()
+	planet = get_planet_by_id(id)
 
-	if planet:	
+	if planet != None:	
 		prepared = session.prepare("DELETE FROM planet WHERE planet_id = ?")
 		session.execute(prepared, [id])
 
