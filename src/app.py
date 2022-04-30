@@ -16,7 +16,7 @@ from flask_mail import Mail, Message
 app = Flask(__name__)
 
 cloud_config= {
-        'secure_connect_bundle': 'secure-connect-awcrm.zip'
+        'secure_connect_bundle': '/Users/alan.wan/Documents/demo/env/secure-connect-awcrm.zip'
 }
 
 CLIENT_ID=os.environ['CLIENT_ID'] 
